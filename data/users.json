@@ -1,0 +1,42 @@
+[
+  {
+    "username": "admin",
+    "passwordHash": "$2b$10$LZgwtmTM7xB/9Lwfsiw6J.Vsjju.5MZFK6pp1M5sB0RSdTHUfMGc.",
+    "role": "admin"
+  },
+  {
+    "username": "staff1",
+    "passwordHash": "$2b$10$mIyj.ssUN/X12mbaZjWD3.t/dmp.ymQCmQjA0e/RNE.V9r5r7/EJe",
+    "role": "staff"
+  },
+  {
+    "username": "rakesh001",
+    "passwordHash": "$2b$10$yuJXIe7gVAdX5F1wh8Z1v.pRNf4Prbd10TOmjoUCxCrRm/DF03m8u",
+    "role": "parent"
+  },
+  {
+    "username": "priya002",
+    "passwordHash": "$2b$10$c/5pII3xxAKmst9AfHbp8e.prCQmGu3JzknVpxobmJ4u/UzaC35z6",
+    "role": "parent"
+  },
+  {
+    "username": "amit003",
+    "passwordHash": "$2b$10$n9JePgm6yeq8NP05UgtYcuVXBD527t.AHIP57XRfr7cOTUKF4E2JC",
+    "role": "parent"
+  },
+  {
+    "username": "sneha004",
+    "passwordHash": "$2b$10$woNGq0VvMcs/SrcG05GOXetqrYlfYWHjqvkVy6RpTpwczozmBN2w2",
+    "role": "parent"
+  },
+  {
+    "username": "aryan005",
+    "passwordHash": "$2b$10$Glreb3239Qc.V5NujiWKC.AuV3Y6.WrsBF90GdVb.JhNvljvDmFZy",
+    "role": "parent"
+  },
+  {
+    "username": "kavya006",
+    "passwordHash": "$2b$10$XeZTfZdQcWUgMXF1A.1b8uGJEwqqAVcZoSVC3sQi7KuFb2oDufsDm",
+    "role": "parent"
+  }
+]

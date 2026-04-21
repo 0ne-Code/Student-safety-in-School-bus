@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parent Dashboard — School Bus Safety System</title>
+  <meta name="description" content="Track your child's school bus in real time. See where the bus is and your child's attendance status.">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .status-card { border-radius: var(--radius-lg); padding: 22px 24px; display: flex; align-items: center; gap: 18px; border: 2px solid transparent; }
+    .sc-on     { background: var(--c-success-bg); border-color: #86efac; }
+    .sc-off    { background: var(--c-danger-bg);  border-color: #fca5a5; }
+    .sc-wait   { background: var(--c-warning-bg); border-color: #fef08a; }
+    .sc-absent { background: var(--c-absent-bg);  border-color: #fdba74; }
+
+    .sc-icon { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0; }
+    .sc-on .sc-icon     { background: #dcfce7; }
+    .sc-off .sc-icon    { background: #fee2e2; }
+    .sc-wait .sc-icon   { background: #fef9c3; }
+    .sc-absent .sc-icon { background: #ffedd5; }
+
+    .sc-status-text { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; }
+    .sc-sub { font-size: 13px; color: var(--c-text-muted); margin-top: 3px; }
+
+    .info-grid { display: grid; grid-template-columns: auto 1fr; gap: 6px 24px; margin-top: 16px; }
+    .ig-label  { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--c-text-muted); padding: 6px 0; border-bottom: 1px solid var(--c-border); }
+    .ig-value  { font-size: 13px; font-weight: 600; color: var(--c-text); padding: 6px 0; border-bottom: 1px solid var(--c-border); }
+
+    .no-data-prompt {
+      background: var(--c-surface);
+      border: 1px dashed var(--c-border);
+      border-radius: var(--radius-lg);
+      padding: 48px 24px;
+      text-align: center;
+    }
+    .no-data-prompt h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--c-primary); }
+
+    .refresh-btn { position: relative; }
+    .refresh-btn.spinning::after {
+      content: '';
+      position: absolute; inset: 2px;
+      border: 2px solid transparent;
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .lastupdate-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="brand-icon">🚌</span><span>Parent Dashboard</span></div>
+  <nav class="nav-links">
+    <a href="index.html">Home</a>
+    <a href="parent.html" class="active">My Child</a>
+  </nav>
+</div>
+
+<main class="container narrow flex-col" style="padding-top:24px; padding-bottom:40px;">
+
+  <!-- Loading state -->
+  <div id="loading-state" class="no-data-prompt fade-in">
+    <div style="font-size:40px;margin-bottom:12px;">🔄</div>
+    <h3>Loading your child's data…</h3>
+    <p class="text-muted text-sm">Please wait a moment.</p>
+  </div>
+
+  <!-- Error state (not linked) -->
+  <div id="error-state" class="no-data-prompt fade-in" style="display:none;">
+    <div style="font-size:40px;margin-bottom:12px;">⚠️</div>
+    <h3>No Student Linked</h3>
+    <p class="text-muted text-sm" style="max-width:320px;margin:0 auto;">Your account is not linked to any student. Please contact the school admin.</p>
+  </div>
+
+  <!-- Main dashboard (shown when child found) -->
+  <div id="main-dash" style="display:none;">
+
+    <!-- Child header -->
+    <div class="card" style="border-left: 4px solid var(--c-primary);">
+      <div class="lastupdate-row">
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--c-text-muted);">Tracking</div>
+          <div id="child-name" style="font-size:22px;font-weight:900;color:var(--c-primary);letter-spacing:-0.3px;"></div>
+        </div>
+        <button class="btn btn-outline refresh-btn" id="refresh-btn" onclick="refresh()" style="padding:8px 14px;font-size:12px;">🔄 Refresh</button>
+      </div>
+      <div class="info-grid">
+        <span class="ig-label">Class</span>     <span class="ig-value" id="child-class">—</span>
+        <span class="ig-label">Location</span>  <span class="ig-value" id="child-loc">—</span>
+        <span class="ig-label">Bus</span>        <span class="ig-value" id="child-bus">—</span>
+        <span class="ig-label">Parent Login</span><span class="ig-value" id="child-pid">—</span>
+      </div>
+    </div>
+
+    <!-- Today's status -->
+    <div id="status-card" class="status-card sc-wait fade-in">
+      <div class="sc-icon">❓</div>
+      <div>
+        <div class="sc-status-text" id="sc-text">Not Yet Scanned</div>
+        <div class="sc-sub" id="sc-sub">Waiting for your child to board.</div>
+      </div>
+    </div>
+
+    <!-- Live Bus Location Widget -->
+    <div id="bus-widget" style="display:none;">
+      <div class="location-widget fade-in">
+        <div class="lw-label"><span class="live-dot" style="margin-right:6px;"></span> Bus Current Location</div>
+        <div class="lw-location" id="lw-location">—</div>
+        <div class="lw-meta" id="lw-meta">Last update via student scan</div>
+        <div class="lw-time" id="lw-time">⏱ —</div>
+      </div>
+    </div>
+
+    <!-- No location yet -->
+    <div id="no-loc-widget" class="card text-center" style="background:var(--c-surface-2);border-style:dashed;">
+      <div style="font-size:28px;margin-bottom:8px;">📍</div>
+      <div style="font-weight:700;color:var(--c-primary);">Bus location not yet updated</div>
+      <div class="text-sm text-muted mt-2">The location will appear here once the first student scans in or an absence is marked.</div>
+    </div>
+
+    <!-- Today's Timeline -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom:14px;">⏱️ Today's Activity Log</div>
+      <div class="timeline" id="timeline">
+        <div class="text-center text-muted text-sm" style="padding:20px;">No activity recorded today.</div>
+      </div>
+    </div>
+
+  </div>
+
+</main>
+
+<div class="toast-container" id="toasts"></div>
+
+<script>
+  let _child    = null;
+  let _buses    = [];
+  let _stateMap = {};
+  let _timer    = null;
+
+  // ── Utilities ────────────────────────────────────────────────
+  async function api(url) {
+    try { const r = await fetch(url); return r.ok ? r.json() : null; }
+    catch { return null; }
+  }
+
+  function toast(msg, type='info') {
+    const c = document.getElementById('toasts');
+    const t = document.createElement('div');
+    t.className = `toast toast-${type}`;
+    t.textContent = msg;
+    c.appendChild(t);
+    setTimeout(() => { t.classList.add('toast-out'); setTimeout(() => t.remove(), 300); }, 3500);
+  }
+
+  function today() { return new Date().toISOString().split('T')[0]; }
+
+  /**
+   * Returns "X mins ago" or "X hrs ago" style string.
+   * For display: "Govandi (20 mins ago)"
+   */
+  function timeAgo(iso) {
+    if (!iso) return '—';
+    const diffSec = Math.floor((Date.now() - new Date(iso)) / 1000);
+    if (diffSec < 60)  return 'just now';
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)} min${Math.floor(diffSec/60)===1?'':'s'} ago`;
+    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} hr${Math.floor(diffSec/3600)===1?'':'s'} ago`;
+    return new Date(iso).toLocaleDateString();
+  }
+
+  function fmtTime(iso) { return new Date(iso).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+
+  // ── Bootstrap ────────────────────────────────────────────────
+  async function init() {
+    const [child, buses] = await Promise.all([api('/api/students/mine'), api('/api/buses')]);
+    _buses = Array.isArray(buses) ? buses : [];
+
+    if (!child || child.error) {
+      document.getElementById('loading-state').style.display = 'none';
+      document.getElementById('error-state').style.display   = 'block';
+      return;
+    }
+
+    _child = child;
+    populateChildInfo();
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('main-dash').style.display     = 'block';
+
+    await refresh();
+    _timer = setInterval(refresh, 10000); // auto-refresh every 10s
+  }
+
+  function populateChildInfo() {
+    const bus = _buses.find(b => b.bus_id === _child.bus_id);
+    document.getElementById('child-name').textContent = _child.name;
+    document.getElementById('child-class').textContent = _child.class  || '—';
+    document.getElementById('child-loc').textContent   = '📍 ' + (_child.location || '—');
+    document.getElementById('child-bus').textContent   = bus ? `${bus.name} (${bus.route})` : _child.bus_id || '—';
+    document.getElementById('child-pid').textContent   = _child.parent_username + ' (password same as username)';
+  }
+
+  // ── Refresh (called every 10 s) ──────────────────────────────
+  async function refresh() {
+    const btn = document.getElementById('refresh-btn');
+    btn.classList.add('spinning');
+
+    const [att, stateMap] = await Promise.all([api('/api/attendance'), api('/api/bus-state')]);
+    _stateMap = stateMap || {};
+
+    const todayRecs = (Array.isArray(att) ? att : [])
+      .filter(a => a.student_id === _child.student_id && a.date === today());
+
+    updateStatusCard(todayRecs);
+    updateBusWidget();
+    updateTimeline(todayRecs);
+
+    btn.classList.remove('spinning');
+  }
+
+  // ── Status Card ──────────────────────────────────────────────
+  function updateStatusCard(recs) {
+    const last = recs[recs.length - 1];
+    const card = document.getElementById('status-card');
+    const text = document.getElementById('sc-text');
+    const sub  = document.getElementById('sc-sub');
+    const icon = card.querySelector('.sc-icon');
+
+    if (!last) {
+      card.className   = 'status-card sc-wait fade-in';
+      icon.textContent = '❓';
+      text.textContent = 'Not Yet Scanned';
+      sub.textContent  = 'Waiting for your child to board.';
+    } else if (last.status === 'IN') {
+      card.className   = 'status-card sc-on fade-in';
+      icon.textContent = '✅';
+      text.textContent = 'On The Bus';
+      sub.textContent  = `Boarded at ${fmtTime(last.timestamp)}`;
+    } else if (last.status === 'OUT') {
+      card.className   = 'status-card sc-off fade-in';
+      icon.textContent = '🏠';
+      text.textContent = 'Reached Destination';
+      sub.textContent  = `Exited at ${fmtTime(last.timestamp)}`;
+    } else if (last.status === 'ABSENT') {
+      card.className   = 'status-card sc-absent fade-in';
+      icon.textContent = '🚫';
+      text.textContent = 'Marked Absent Today';
+      sub.textContent  = `Absence recorded at ${fmtTime(last.timestamp)}`;
+    }
+  }
+
+  // ── Bus Location Widget ──────────────────────────────────────
+  function updateBusWidget() {
+    const busWidget  = document.getElementById('bus-widget');
+    const noLocWid   = document.getElementById('no-loc-widget');
+    const busState   = _child.bus_id ? _stateMap[_child.bus_id] : null;
+
+    if (!busState || !busState.currentLocation) {
+      busWidget.style.display  = 'none';
+      noLocWid.style.display   = 'block';
+      return;
+    }
+
+    busWidget.style.display  = 'block';
+    noLocWid.style.display   = 'none';
+
+    const loc = busState.currentLocation;
+    const ago = timeAgo(busState.lastUpdated);
+    const who = busState.updateReason || '';
+
+    document.getElementById('lw-location').textContent = `📍 ${loc}`;
+    document.getElementById('lw-meta').textContent     = who || 'Updated via student scan';
+    document.getElementById('lw-time').textContent     = `⏱ ${ago}`;
+  }
+
+  // ── Timeline ─────────────────────────────────────────────────
+  function updateTimeline(recs) {
+    const el = document.getElementById('timeline');
+    if (!recs.length) {
+      el.innerHTML = '<div class="text-center text-muted text-sm" style="padding:20px;">No activity recorded today.</div>';
+      return;
+    }
+    el.innerHTML = recs.map((r, i) => {
+      const isLast = i === recs.length - 1;
+      const dotClass = r.status === 'IN' ? 'in' : r.status === 'OUT' ? 'out' : 'absent';
+      const label  = r.status === 'IN' ? 'Boarded bus'
+        : r.status === 'OUT' ? 'Exited bus'
+        : 'Marked absent';
+      const color = r.status === 'IN' ? 'var(--c-success-dark)' : r.status === 'OUT' ? 'var(--c-danger-dark)' : 'var(--c-absent-dark)';
+      return `<div class="tl-item">
+        <div class="tl-left">
+          <div class="tl-dot ${dotClass}"></div>
+          ${!isLast ? '<div class="tl-line"></div>' : ''}
+        </div>
+        <div class="tl-content">
+          <div style="font-weight:700;font-size:14px;color:${color};">${label}</div>
+          <div class="text-sm text-muted">${fmtTime(r.timestamp)}</div>
+          ${(r.status === 'IN' || r.status === 'ABSENT') && _child.location
+            ? `<div class="text-xs" style="margin-top:3px;color:var(--c-text-muted);">📍 Bus reached ${_child.location}</div>`
+            : ''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────
+  init();
+</script>
+<script src="js/auth.js"></script>
+</body>
+</html>

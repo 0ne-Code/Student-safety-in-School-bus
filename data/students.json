@@ -1,0 +1,68 @@
+[
+  {
+    "student_id": "STU001",
+    "name": "Rakesh Sharma",
+    "class": "8-A",
+    "location": "Govandi",
+    "parent_name": "Suresh Sharma",
+    "parent_phone": "9876543210",
+    "bus_id": "BUS-01",
+    "qr_code": "STU001",
+    "parent_username": "rakesh001"
+  },
+  {
+    "student_id": "STU002",
+    "name": "Priya Patel",
+    "class": "9-B",
+    "location": "Rabale",
+    "parent_name": "Kishore Patel",
+    "parent_phone": "9876543211",
+    "bus_id": "BUS-01",
+    "qr_code": "STU002",
+    "parent_username": "priya002"
+  },
+  {
+    "student_id": "STU003",
+    "name": "Amit Singh",
+    "class": "10-A",
+    "location": "Kurla",
+    "parent_name": "Dinesh Singh",
+    "parent_phone": "9876543212",
+    "bus_id": "BUS-01",
+    "qr_code": "STU003",
+    "parent_username": "amit003"
+  },
+  {
+    "student_id": "STU004",
+    "name": "Sneha Gupta",
+    "class": "7-C",
+    "location": "Thane",
+    "parent_name": "Ramesh Gupta",
+    "parent_phone": "9876543213",
+    "bus_id": "BUS-02",
+    "qr_code": "STU004",
+    "parent_username": "sneha004"
+  },
+  {
+    "student_id": "STU005",
+    "name": "Aryan Mehta",
+    "class": "11-B",
+    "location": "Mulund",
+    "parent_name": "Vijay Mehta",
+    "parent_phone": "9876543214",
+    "bus_id": "BUS-02",
+    "qr_code": "STU005",
+    "parent_username": "aryan005"
+  },
+  {
+    "student_id": "STU006",
+    "name": "Kavya Nair",
+    "class": "6-A",
+    "location": "Powai",
+    "parent_name": "Mohan Nair",
+    "parent_phone": "9876543215",
+    "bus_id": "BUS-02",
+    "qr_code": "STU006",
+    "parent_username": "kavya006"
+  }
+]

@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel — School Bus Safety System</title>
+  <meta name="description" content="Admin panel for managing students, buses, routes, and staff accounts.">
+  <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body {
+      overflow: hidden;
+    }
+
+    .parent-id-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: var(--c-primary);
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: help;
+    }
+
+    .inline-form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .inline-form-grid.cols3 {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+
+    .form-note {
+      font-size: 11px;
+      color: var(--c-text-muted);
+      margin-top: 4px;
+    }
+
+    #qr-modal {
+      position: fixed;
+    }
+
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 22px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .page-header h2 {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--c-primary);
+      letter-spacing: -0.3px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="topbar">
+    <div class="brand"><span class="brand-icon">🚌</span><span>School Bus System — Admin</span></div>
+    <nav class="nav-links">
+      <a href="admin.html" class="active">Admin</a>
+      <a href="scanner.html">Scanner</a>
+    </nav>
+  </div>
+
+  <div class="admin-layout">
+    <!-- SIDEBAR -->
+    <aside class="admin-sidebar">
+      <div class="sidebar-section-label">Management</div>
+      <button class="sidebar-btn active" onclick="showTab('students',this)">
+        <span class="sidebar-icon">👨‍🎓</span> Student List
+      </button>
+      <button class="sidebar-btn" onclick="showTab('add-student',this)">
+        <span class="sidebar-icon">➕</span> Add Student
+      </button>
+
+      <div class="sidebar-section-label">Fleet</div>
+      <button class="sidebar-btn" onclick="showTab('buses',this,renderFleet)">
+        <span class="sidebar-icon">🚌</span> Buses & Routes
+      </button>
+      <button class="sidebar-btn" onclick="showTab('tracker',this,renderBusTracker)">
+        <span class="sidebar-icon">📍</span> Bus Locations
+      </button>
+
+      <div class="sidebar-section-label">System</div>
+      <button class="sidebar-btn" onclick="showTab('users',this,renderUsers)">
+        <span class="sidebar-icon">👤</span> User Accounts
+      </button>
+      <button class="sidebar-btn" onclick="showTab('attendance',this,renderAttendance)">
+        <span class="sidebar-icon">📋</span> Attendance Log
+      </button>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="admin-content">
+
+      <!-- ═══ STUDENT LIST ═══ -->
+      <div id="tab-students" class="tab-panel active fade-in">
+        <div class="page-header">
+          <h2>👨‍🎓 Registered Students <span id="stu-count"
+              style="font-size:14px;font-weight:500;color:var(--c-text-muted);"></span></h2>
+          <div class="flex-row gap-2">
+            <div class="search-wrap" style="max-width:260px;">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="stu-search" placeholder="Search name, ID, location…"
+                oninput="filterStudents(this.value)">
+            </div>
+            <button class="btn btn-outline" onclick="downloadCSV()">📥 Export CSV</button>
+          </div>
+        </div>
+
+        <div
+          style="overflow-x:auto; border-radius: var(--radius-md); border: 1px solid var(--c-border); box-shadow: var(--shadow-sm);">
+          <table class="data-table" id="students-table">
+            <thead>
+              <tr>
+                <th>Student ID</th>
+                <th>Name</th>
+                <th>Class</th>
+                <th>Location</th>
+                <th>Bus</th>
+                <th>Parent Login</th>
+                <th style="text-align:center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="students-tbody">
+              <tr>
+                <td colspan="7" class="text-center text-muted" style="padding:40px;">Loading…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ═══ ADD STUDENT ═══ -->
+      <div id="tab-add-student" class="tab-panel fade-in">
+        <div class="page-header">
+          <h2>➕ Add New Student</h2>
+        </div>
+        <div class="card" style="max-width:660px;">
+          <div class="inline-form-grid">
+            <div class="form-group"><label>Full Name *</label><input id="f-name" placeholder="e.g. Rakesh Sharma"></div>
+            <div class="form-group"><label>Class *</label><input id="f-class" placeholder="e.g. 8-A"></div>
+          </div>
+          <div class="inline-form-grid cols3">
+            <div class="form-group"><label>Home Location *</label><input id="f-location" placeholder="e.g. Govandi">
+              <div class="form-note">This location updates the bus when student boards.</div>
+            </div>
+            <div class="form-group"><label>Assign Bus *</label>
+              <select id="f-bus">
+                <option value="">Loading buses…</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Parent Name</label><input id="f-pname" placeholder="e.g. Suresh Sharma">
+            </div>
+          </div>
+          <div class="inline-form-grid">
+            <div class="form-group"><label>Parent Phone</label><input id="f-phone" placeholder="e.g. 9876543210"></div>
+            <div class="form-group" style="justify-content:flex-end;">
+              <div class="form-note"
+                style="margin-top:auto; background:#eff6ff; border:1px solid #bfdbfe; padding:10px 12px; border-radius:var(--radius-sm); color:var(--c-primary); font-size:12px;">
+                🔑 Parent login auto-generated as <strong>firstname + ID number</strong><br>e.g. student "Rakesh" with
+                ID 007 → <code style="background:#dbeafe;padding:1px 5px;border-radius:4px;">rakesh007</code>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-full" id="add-btn" onclick="addStudent()">📷 Generate QR & Register
+            Student</button>
+        </div>
+      </div>
+
+      <!-- ═══ BUSES & ROUTES ═══ -->
+      <div id="tab-buses" class="tab-panel fade-in">
+        <div class="page-header">
+          <h2>🚌 Fleet Management</h2>
+          <button class="btn btn-primary" onclick="showBusForm()" style="padding:8px 14px;font-size:13px;">➕ Add
+            Bus</button>
+        </div>
+        <div id="bus-add-form" class="card"
+          style="display:none; max-width:520px; margin-bottom:20px; border-left:4px solid var(--c-primary-light);">
+          <div class="card-title">Register New Bus</div>
+          <div class="inline-form-grid">
+            <div class="form-group"><label>Bus Name / Number</label><input id="b-name" placeholder="e.g. Bus 03"></div>
+            <div class="form-group"><label>Route Description</label><input id="b-route"
+                placeholder="e.g. Govandi → Rabale → Kurla"></div>
+          </div>
+          <div class="flex-row gap-2">
+            <button class="btn btn-success" onclick="saveBus()">Save Bus</button>
+            <button class="btn btn-outline"
+              onclick="document.getElementById('bus-add-form').style.display='none'">Cancel</button>
+          </div>
+        </div>
+        <div id="fleet-list" class="flex-col" style="gap:14px;"></div>
+      </div>
+
+      <!-- ═══ BUS LOCATIONS ═══ -->
+      <div id="tab-tracker" class="tab-panel fade-in">
+        <div class="page-header">
+          <h2>📍 Live Bus Locations</h2><span class="badge badge-primary"><span class="live-dot"
+              style="margin-right:4px;"></span> Auto-refreshes</span>
+        </div>
+        <div id="tracker-cards" class="grid"
+          style="grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap:16px;"></div>
+      </div>
+
+      <!-- ═══ USER ACCOUNTS ═══ -->
+      <div id="tab-users" class="tab-panel fade-in">
+        <div class="page-header">
+          <h2>👤 User Accounts</h2>
+          <button class="btn btn-primary" onclick="showUserForm()" style="padding:8px 14px;font-size:13px;">➕ Add
+            User</button>
+        </div>
+        <div id="user-add-form" class="card"
+          style="display:none; max-width:560px; margin-bottom:20px; border-left:4px solid var(--c-primary-light);">
+          <div class="card-title">Create Account</div>
+          <div class="inline-form-grid cols3">
+            <div class="form-group"><label>Username</label><input id="u-name" placeholder="e.g. staff2"></div>
+            <div class="form-group"><label>Password</label><input id="u-pass" type="password"
+                placeholder="Set password"></div>
+            <div class="form-group"><label>Role</label>
+              <select id="u-role">
+                <option value="staff">Staff (Attendant)</option>
+                <option value="parent">Parent</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex-row gap-2">
+            <button class="btn btn-success" onclick="saveUser()">Save Account</button>
+            <button class="btn btn-outline"
+              onclick="document.getElementById('user-add-form').style.display='none'">Cancel</button>
+          </div>
+        </div>
+        <div
+          style="overflow-x:auto; border-radius:var(--radius-md); border:1px solid var(--c-border); box-shadow:var(--shadow-sm);">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Username</th>
+                <th>Role</th>
+                <th style="text-align:center;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="users-tbody">
+              <tr>
+                <td colspan="3" class="text-center text-muted" style="padding:30px;">Loading…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ═══ ATTENDANCE LOG ═══ -->
+      <div id="tab-attendance" class="tab-panel fade-in">
+        <div class="page-header">
+          <h2>📋 Attendance Log</h2>
+          <input type="date" id="att-date-filter" onchange="renderAttendance()" style="width:auto;padding:8px 12px;">
+        </div>
+        <div
+          style="overflow-x:auto; border-radius:var(--radius-md); border:1px solid var(--c-border); box-shadow:var(--shadow-sm);">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Student</th>
+                <th>Bus</th>
+                <th>Location</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="att-tbody">
+              <tr>
+                <td colspan="5" class="text-center text-muted" style="padding:30px;">Loading…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- QR MODAL -->
+  <div class="modal-overlay" id="qr-modal" onclick="if(event.target===this)closeQR()">
+    <div class="modal-box" style="position:relative; text-align:center;">
+      <button class="modal-close" onclick="closeQR()">✕</button>
+      <div id="qr-student-name" style="font-size:18px;font-weight:800;color:var(--c-primary);margin-bottom:2px;"></div>
+      <div id="qr-student-meta" style="font-size:12px;color:var(--c-text-muted);margin-bottom:4px;"></div>
+      <div class="parent-id-chip" id="qr-parent-chip" style="margin-bottom:16px;"
+        title="This is the parent's login username. Password is the same.">🔑 Parent login: <span
+          id="qr-parent-id"></span></div>
+      <div id="modal-qr-box" style="display:block;text-align:center;line-height:0;min-height:180px;"></div>
+      <div class="flex-row" style="justify-content:center; gap:10px; margin-top:4px;">
+        <button class="btn btn-outline" onclick="downloadQR()">📥 Download QR</button>
+        <button class="btn btn-primary" onclick="closeQR()">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast-container" id="toasts"></div>
+
+  <script>
+    // ── Utilities ────────────────────────────────────────────────
+    async function api(url, opts = {}) {
+      const r = await fetch(url, {
+        credentials: 'include',   // ✅ FIX (VERY IMPORTANT)
+        headers: { 'Content-Type': 'application/json' },
+        ...opts
+      });
+
+      let data = null;
+      try {
+        data = await r.json();
+      } catch { }
+
+      return { ok: r.ok, data };
+    }
+
+    function toast(msg, type = 'info') {
+      const c = document.getElementById('toasts');
+      const t = document.createElement('div');
+      t.className = `toast toast-${type}`;
+      t.textContent = msg;
+      c.appendChild(t);
+      setTimeout(() => { t.classList.add('toast-out'); setTimeout(() => t.remove(), 300); }, 3500);
+    }
+
+    function timeAgo(iso) {
+      if (!iso) return '—';
+      const d = Math.floor((Date.now() - new Date(iso)) / 1000);
+      if (d < 60) return `${d}s ago`;
+      if (d < 3600) return `${Math.floor(d / 60)}m ago`;
+      if (d < 86400) return `${Math.floor(d / 3600)}h ago`;
+      return new Date(iso).toLocaleDateString();
+    }
+
+    function today() { return new Date().toISOString().split('T')[0]; }
+
+    // ── Tab Navigation ───────────────────────────────────────────
+    function showTab(id, btn, onShow) {
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('tab-' + id).classList.add('active');
+      document.querySelectorAll('.sidebar-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (typeof onShow === 'function') onShow();
+    }
+
+    // ── Student data ─────────────────────────────────────────────
+    let _students = [], _buses = [], _qrInst = null;
+
+    async function loadStudents() {
+      const { data } = await api('/api/students');
+      _students = Array.isArray(data) ? data : [];
+      document.getElementById('stu-count').textContent = `(${_students.length})`;
+      renderStudentTable(_students);
+    }
+
+    async function loadBuses() {
+      const { data } = await api('/api/buses');
+      _buses = Array.isArray(data) ? data : [];
+      const sel = document.getElementById('f-bus');
+      sel.innerHTML = _buses.length
+        ? _buses.map(b => `<option value="${b.bus_id}">${b.name} — ${b.route}</option>`).join('')
+        : '<option value="">No buses registered</option>';
+    }
+
+    function renderStudentTable(arr) {
+      const tbody = document.getElementById('students-tbody');
+      if (!arr.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted" style="padding:40px;">No students found.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = arr.map(s => {
+        const bus = _buses.find(b => b.bus_id === s.bus_id);
+        return `<tr>
+        <td><code class="pill">${s.student_id}</code></td>
+        <td style="font-weight:600;color:var(--c-primary);">${s.name}</td>
+        <td>${s.class || '—'}</td>
+        <td>📍 ${s.location || '—'}</td>
+        <td><span class="badge badge-neutral">${bus ? bus.name : s.bus_id || '—'}</span></td>
+        <td><span class="parent-id-chip" title="Password same as username">🔑 ${s.parent_username || '—'}</span></td>
+        <td style="text-align:center;">
+          <div class="flex-row" style="justify-content:center;gap:6px;">
+            <button class="btn btn-primary" style="padding:5px 10px;font-size:12px;" data-action="qr" data-sid="${s.student_id}">📷 QR</button>
+            <button class="btn btn-danger" style="padding:5px 10px;font-size:12px;" data-action="delete" data-sid="${s.student_id}">✕</button>
+          </div>
+        </td>
+      </tr>`;
+      }).join('');
+    }
+
+    function filterStudents(q) {
+      q = q.toLowerCase();
+      renderStudentTable(_students.filter(s =>
+        s.name.toLowerCase().includes(q) ||
+        s.student_id.toLowerCase().includes(q) ||
+        (s.location || '').toLowerCase().includes(q) ||
+        (s.class || '').toLowerCase().includes(q)
+      ));
+    }
+
+    // ── Add Student ──────────────────────────────────────────────
+    async function addStudent() {
+      const name = document.getElementById('f-name').value.trim();
+      const cls = document.getElementById('f-class').value.trim();
+      const location = document.getElementById('f-location').value.trim();
+      const bus_id = document.getElementById('f-bus').value;
+      const pname = document.getElementById('f-pname').value.trim();
+      const phone = document.getElementById('f-phone').value.trim();
+
+      if (!name || !location || !bus_id) { toast('Name, location and bus are required.', 'error'); return; }
+
+      const btn = document.getElementById('add-btn');
+      btn.disabled = true; btn.textContent = 'Saving…';
+
+      const { ok, data } = await api('/api/students', {
+        method: 'POST',
+        body: JSON.stringify({ name, class: cls, location, bus_id, parent_name: pname || 'N/A', parent_phone: phone || 'N/A' })
+      });
+
+      btn.disabled = false; btn.innerHTML = '📷 Generate QR & Register Student';
+
+      if (!ok) { toast(data.error || 'Failed to save.', 'error'); return; }
+
+      toast(`✅ ${name} added! Parent login: ${data.parent_username}`, 'success');
+      ['f-name', 'f-class', 'f-location', 'f-pname', 'f-phone'].forEach(id => document.getElementById(id).value = '');
+      await loadStudents();
+      showTab('students', document.querySelector('.sidebar-btn'));
+      openQR(data.student.student_id);
+    }
+
+    // ── Delete Student ───────────────────────────────────────────
+    async function deleteStudent(id) {
+      if (!confirm('Remove this student and their parent login? This cannot be undone.')) return;
+      const { ok, data } = await api(`/api/students/${id}`, { method: 'DELETE' });
+      if (!ok) { toast(data.error, 'error'); return; }
+      toast('Student removed.', 'info');
+      await loadStudents();
+    }
+
+    // ── Download CSV ─────────────────────────────────────────────
+    async function downloadCSV() {
+      const { data: att } = await api('/api/attendance');
+      const rows = ['Student ID,Name,Class,Location,Bus,Status,Time'];
+      (_students).forEach(s => {
+        const recs = (att || []).filter(a => a.student_id === s.student_id && a.date === today());
+        const last = recs[recs.length - 1];
+        rows.push(`"${s.student_id}","${s.name}","${s.class || ''}","${s.location || ''}","${s.bus_id || ''}","${last?.status || 'NO SCAN'}","${last?.timestamp || ''}"`);
+      });
+      const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `attendance_${today()}.csv`;
+      a.click();
+    }
+
+    // ── QR Modal ─────────────────────────────────────────────────
+    function openQR(id) {
+      const s = _students.find(x => x.student_id === id);
+      if (!s) { console.warn('[openQR] student not found:', id); return; }
+
+      // Populate info
+      document.getElementById('qr-student-name').textContent = s.name;
+      document.getElementById('qr-student-meta').textContent = `${s.student_id} · Class ${s.class || '—'} · 📍${s.location || '—'}`;
+      document.getElementById('qr-parent-id').textContent = s.parent_username || '—';
+
+      // Open the modal FIRST — so a QRCode library failure never blocks the modal
+      document.getElementById('qr-modal').classList.add('open');
+
+      const box = document.getElementById('modal-qr-box');
+
+      // Use rAF so the modal's CSS transition has laid out the box before QRCode measures it
+      requestAnimationFrame(() => {
+        try {
+          if (!_qrInst) {
+            // First time opening: clear the box and initialize the QR code instance
+            box.innerHTML = '';
+            _qrInst = new QRCode(box, {
+              text: s.student_id,
+              width: 180,
+              height: 180,
+              correctLevel: QRCode.CorrectLevel.H
+            });
+          } else {
+            // Subsequent times: cleanly update the existing QR code instance
+            _qrInst.makeCode(s.student_id);
+          }
+        } catch (err) {
+          // Graceful fallback if the CDN fails to load
+          box.innerHTML = `<div style="padding:20px;text-align:center;color:var(--c-text-muted);font-size:13px;">
+      QR library unavailable.<br>
+      <code style="font-size:14px;font-weight:700;color:var(--c-primary);background:#eff6ff;padding:4px 10px;border-radius:6px;margin-top:8px;display:inline-block;">${s.student_id}</code>
+    </div>`;
+        }
+      });
+    }
+    function closeQR() { document.getElementById('qr-modal').classList.remove('open'); }
+    function downloadQR() {
+      const name = document.getElementById('qr-student-name').textContent.replace(/\s+/g, '_');
+      // qrcodejs renders as <img> in most browsers, <canvas> in some
+      const img = document.querySelector('#modal-qr-box img');
+      const canvas = document.querySelector('#modal-qr-box canvas');
+      const a = document.createElement('a');
+      a.download = `QR_${name}.png`;
+      if (img && img.src) {
+        a.href = img.src;
+        a.click();
+      } else if (canvas) {
+        a.href = canvas.toDataURL('image/png');
+        a.click();
+      } else {
+        alert('QR image not ready — please wait a moment and try again.');
+      }
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeQR(); })
+
+    // ── Student table: event delegation (robust, survives re-renders) ──────────
+    document.getElementById('students-table').addEventListener('click', e => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const id = btn.dataset.sid;
+      if (btn.dataset.action === 'qr') openQR(id);
+      if (btn.dataset.action === 'delete') deleteStudent(id);
+    });
+
+    // ── Fleet / Buses ────────────────────────────────────────────
+    function showBusForm() { document.getElementById('bus-add-form').style.display = 'block'; }
+    async function saveBus() {
+      const name = document.getElementById('b-name').value.trim();
+      const route = document.getElementById('b-route').value.trim();
+      if (!name || !route) { toast('Fill all bus fields.', 'error'); return; }
+      const bus_id = 'BUS-' + Date.now().toString().slice(-4);
+      const { ok, data } = await api('/api/buses', { method: 'POST', body: JSON.stringify({ bus_id, name, route }) });
+      if (!ok) { toast(data.error, 'error'); return; }
+      document.getElementById('b-name').value = '';
+      document.getElementById('b-route').value = '';
+      document.getElementById('bus-add-form').style.display = 'none';
+      toast(`Bus "${name}" added.`, 'success');
+      await loadBuses();
+      renderFleet();
+    }
+    async function deleteBus(id) {
+      if (!confirm('Delete this bus?')) return;
+      await api(`/api/buses/${id}`, { method: 'DELETE' });
+      await loadBuses(); renderFleet();
+      toast('Bus deleted.', 'info');
+    }
+    async function renderFleet() {
+      const el = document.getElementById('fleet-list');
+      el.innerHTML = '';
+      if (!_buses.length) {
+        el.innerHTML = `<div class="card text-center text-muted" style="padding:40px;">No buses yet. Click "Add Bus" above.</div>`;
+        return;
+      }
+      _buses.forEach((b, i) => {
+        const members = _students.filter(s => s.bus_id === b.bus_id);
+        const domId = `roster-${i}`;
+        const card = document.createElement('div');
+        card.className = 'fleet-card';
+        card.innerHTML = `
+        <div class="fleet-header">
+          <div>
+            <div style="font-weight:700;font-size:15px;">🚌 ${b.name}</div>
+            <div style="font-size:12px;color:var(--c-text-muted);margin-top:2px;">${b.route} · ${members.length} student${members.length !== 1 ? 's' : ''}</div>
+          </div>
+          <div class="flex-row gap-2">
+            <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="toggleRoster('${domId}')">Show roster ▾</button>
+            <button class="btn btn-danger" style="font-size:12px;padding:5px 10px;" onclick="deleteBus('${b.bus_id}')">✕</button>
+          </div>
+        </div>
+        <div class="fleet-body" id="${domId}" style="display:none;">
+          ${members.length
+            ? members.map(s => `<div class="fleet-member">
+                <div><span style="font-weight:600;">${s.name}</span> <span class="text-muted text-sm" style="margin-left:6px;">Class ${s.class || '—'}</span></div>
+                <div class="flex-row gap-2"><code class="pill">${s.student_id}</code><span class="badge badge-neutral">📍 ${s.location}</span></div>
+              </div>`).join('')
+            : `<div class="fleet-member text-muted">No students on this bus.</div>`}
+        </div>`;
+        el.appendChild(card);
+      });
+    }
+    function toggleRoster(id) {
+      const el = document.getElementById(id);
+      const showing = el.style.display !== 'none';
+      el.style.display = showing ? 'none' : 'block';
+      el.previousElementSibling.querySelector('button').textContent = showing ? 'Show roster ▾' : 'Hide roster ▴';
+    }
+
+    // ── Bus Tracker (admin view) ─────────────────────────────────
+    async function renderBusTracker() {
+      const el = document.getElementById('tracker-cards');
+      el.innerHTML = '<div class="text-muted text-sm">Loading…</div>';
+      const { data: stateMap } = await api('/api/bus-state');
+      if (!_buses.length) { el.innerHTML = '<div class="card text-muted text-center" style="padding:32px;">No buses registered.</div>'; return; }
+      el.innerHTML = _buses.map(b => {
+        const st = (stateMap || {})[b.bus_id];
+        const loc = st?.currentLocation ?? null;
+        const ago = st?.lastUpdated ? timeAgo(st.lastUpdated) : null;
+        const who = st?.updateReason ?? '';
+        if (!loc) return `
+        <div class="card" style="background:#f8fafc;border-style:dashed;">
+          <div style="font-weight:700;font-size:15px;margin-bottom:6px;">🚌 ${b.name}</div>
+          <div class="text-sm text-muted">${b.route}</div>
+          <hr class="divider">
+          <div class="text-muted text-sm text-center" style="padding:12px 0;">No scans yet — location unknown</div>
+        </div>`;
+        return `
+        <div class="card fade-in">
+          <div style="font-weight:700;font-size:15px;margin-bottom:4px;">🚌 ${b.name}</div>
+          <div class="text-sm text-muted" style="margin-bottom:12px;">${b.route}</div>
+          <div style="font-size:28px;font-weight:900;color:var(--c-primary);letter-spacing:-0.5px;">📍 ${loc}</div>
+          <div class="text-sm text-muted" style="margin-top:6px;">${ago}</div>
+          ${who ? `<div class="badge badge-primary" style="margin-top:10px;font-size:11px;">${who}</div>` : ''}
+          <button class="btn btn-danger" style="margin-top:14px;font-size:12px;padding:6px 12px;" onclick="resetBusLoc('${b.bus_id}')">🗑 Reset Location</button>
+        </div>`;
+      }).join('');
+    }
+    async function resetBusLoc(id) {
+      if (!confirm('Reset this bus location data?')) return;
+      await api(`/api/bus-state/${id}`, { method: 'DELETE' });
+      renderBusTracker();
+      toast('Bus location reset.', 'info');
+    }
+
+    // ── User Accounts ────────────────────────────────────────────
+    function showUserForm() { document.getElementById('user-add-form').style.display = 'block'; }
+    async function saveUser() {
+      const username = document.getElementById('u-name').value.trim();
+      const password = document.getElementById('u-pass').value;
+      const role = document.getElementById('u-role').value;
+      if (!username || !password) { toast('Fill all fields.', 'error'); return; }
+      const { ok, data } = await api('/api/users', { method: 'POST', body: JSON.stringify({ username, password, role }) });
+      if (!ok) { toast(data.error, 'error'); return; }
+      document.getElementById('u-name').value = '';
+      document.getElementById('u-pass').value = '';
+      document.getElementById('user-add-form').style.display = 'none';
+      toast(`Account "${username}" created.`, 'success');
+      renderUsers();
+    }
+    async function deleteUser(username) {
+      if (!confirm(`Remove account "${username}"?`)) return;
+      const { ok, data } = await api(`/api/users/${username}`, { method: 'DELETE' });
+      if (!ok) { toast(data.error, 'error'); return; }
+      toast('Account removed.', 'info');
+      renderUsers();
+    }
+    async function renderUsers() {
+      const { data } = await api('/api/users');
+      const tbody = document.getElementById('users-tbody');
+      const users = Array.isArray(data) ? data : [];
+      if (!users.length) { tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted" style="padding:32px;">No accounts yet.</td></tr>`; return; }
+      tbody.innerHTML = users.map(u => `
+      <tr>
+        <td style="font-weight:600;">${u.username}</td>
+        <td><span class="badge ${u.role === 'staff' ? 'badge-warning' : 'badge-neutral'}">${u.role.toUpperCase()}</span></td>
+        <td style="text-align:center;"><button class="btn btn-danger" style="padding:4px 10px;font-size:12px;" onclick="deleteUser('${u.username}')">✕ Remove</button></td>
+      </tr>`).join('');
+    }
+
+    // ── Attendance Log ───────────────────────────────────────────
+    async function renderAttendance() {
+      const filter = document.getElementById('att-date-filter').value || today();
+      const { data: att } = await api('/api/attendance');
+      const tbody = document.getElementById('att-tbody');
+      const recs = (Array.isArray(att) ? att : []).filter(a => a.date === filter).reverse();
+      if (!recs.length) { tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding:32px;">No records for ${filter}.</td></tr>`; return; }
+      tbody.innerHTML = recs.map(r => {
+        const s = _students.find(x => x.student_id === r.student_id);
+        const bus = _buses.find(b => b.bus_id === r.bus_id);
+        const t = new Date(r.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const bCls = r.status === 'IN' ? 'badge-success' : r.status === 'OUT' ? 'badge-danger' : 'badge-absent';
+        return `<tr>
+        <td class="text-muted">${t}</td>
+        <td style="font-weight:600;">${s?.name ?? r.student_id} <span class="text-xs text-muted">(${r.student_id})</span></td>
+        <td>${bus ? bus.name : r.bus_id}</td>
+        <td>📍 ${s?.location ?? '—'}</td>
+        <td><span class="badge ${bCls}">${r.status}</span></td>
+      </tr>`;
+      }).join('');
+    }
+
+    // ── Init ─────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('att-date-filter').value = today();
+    });
+    (async () => { await loadBuses(); await loadStudents(); })();
+    setInterval(renderBusTracker, 10000);
+  </script>
+  <script src="js/auth.js"></script>
+</body>
+
+</html>

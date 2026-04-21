@@ -1,0 +1,12 @@
+[
+  {
+    "bus_id": "BUS-01",
+    "name": "Bus 01",
+    "route": "Govandi - Rabale - Kurla"
+  },
+  {
+    "bus_id": "BUS-02",
+    "name": "Bus 02",
+    "route": "Thane - Mulund - Powai"
+  }
+]

@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bus Attendant Scanner — School Bus Safety System</title>
+  <meta name="description" content="Scan student QR codes or manually mark entries, exits, and absences. Bus location updates automatically.">
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .bus-select-bar {
+      background: var(--c-surface);
+      border-bottom: 1px solid var(--c-border);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      position: sticky;
+      top: 60px;
+      z-index: 100;
+    }
+    .bus-select-bar label { white-space: nowrap; margin-bottom: 0; }
+    .bus-select-bar select { max-width: 280px; margin: 0; }
+
+    .mode-banner {
+      padding: 11px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 700;
+      text-align: center;
+      display: none;
+    }
+    .mode-banner.in     { background: var(--c-success-bg); color: var(--c-success-dark); border: 1.5px solid #86efac; display: block; }
+    .mode-banner.out    { background: var(--c-danger-bg);  color: var(--c-danger-dark);  border: 1.5px solid #fca5a5; display: block; }
+    .mode-banner.absent { background: var(--c-absent-bg);  color: var(--c-absent-dark);  border: 1.5px solid #fdba74; display: block; }
+
+    .result-banner { border-radius: var(--radius-md); padding: 18px 22px; display: none; margin-bottom: 12px; }
+    .rb-in     { background: var(--c-success-bg); border: 2px solid #86efac; }
+    .rb-out    { background: var(--c-danger-bg);  border: 2px solid #fca5a5; }
+    .rb-absent { background: var(--c-absent-bg);  border: 2px solid #fdba74; }
+    .rb-dup    { background: var(--c-surface-2);  border: 2px solid var(--c-border); }
+    .rb-err    { background: var(--c-warning-bg); border: 2px solid #fef08a; }
+    .rb-status { font-size: 20px; font-weight: 900; }
+    .rb-name   { font-size: 16px; font-weight: 700; margin-top: 2px; }
+    .rb-meta   { font-size: 12px; color: var(--c-text-muted); margin-top: 4px; }
+
+    .location-update-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(30,58,95,0.08); border: 1px solid rgba(30,58,95,0.2);
+      color: var(--c-primary); padding: 5px 12px; border-radius: 20px;
+      font-size: 12px; font-weight: 700; margin-top: 10px;
+    }
+
+    .absent-student-select {
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+    .absent-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 16px; border-bottom: 1px solid var(--c-border);
+      cursor: pointer; transition: background var(--ease);
+    }
+    .absent-row:last-child { border: none; }
+    .absent-row:hover { background: var(--c-surface-2); }
+    .absent-row .stu-name { font-weight: 600; font-size: 14px; }
+    .absent-row .stu-loc  { font-size: 12px; color: var(--c-text-muted); margin-top: 2px; }
+    .absent-row .mark-btn { background: var(--c-absent); color: white; border: none; padding: 6px 14px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 700; cursor: pointer; transition: background var(--ease); }
+    .absent-row .mark-btn:hover { background: #ea580c; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="brand-icon">🚌</span><span>Bus Attendant Scanner</span></div>
+  <nav class="nav-links">
+    <a href="index.html">Home</a>
+    <a href="scanner.html" class="active">Scanner</a>
+  </nav>
+</div>
+
+<!-- Bus selector bar -->
+<div class="bus-select-bar">
+  <label for="bus-sel">Active Bus:</label>
+  <select id="bus-sel" onchange="onBusChange()">
+    <option value="">— Select bus —</option>
+  </select>
+  <span id="bus-route-label" class="badge badge-neutral" style="margin-left:auto;"></span>
+</div>
+
+<main class="container narrow flex-col" style="padding-top:20px; padding-bottom:40px;">
+
+  <!-- Mode selector -->
+  <div class="card" style="padding:16px;">
+    <div class="mode-tabs" id="mode-tabs">
+      <button class="mode-tab tab-in" id="tab-in" onclick="setMode('IN')">
+        <span class="tab-icon">📥</span>
+        <span class="tab-label">Entry</span>
+        <span class="text-xs text-muted">Board</span>
+      </button>
+      <button class="mode-tab tab-out" id="tab-out" onclick="setMode('OUT')">
+        <span class="tab-icon">📤</span>
+        <span class="tab-label">Exit</span>
+        <span class="text-xs text-muted">Deboard</span>
+      </button>
+      <button class="mode-tab tab-absent" id="tab-absent" onclick="setMode('ABSENT')">
+        <span class="tab-icon">🚫</span>
+        <span class="tab-label">Absent</span>
+        <span class="text-xs text-muted">Not Present</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Mode Banner -->
+  <div class="mode-banner" id="mode-banner"></div>
+
+  <!-- Pick-mode prompt -->
+  <div class="card text-center fade-in" id="pick-mode-msg" style="background:#fffbeb;border:1px solid #fef08a;padding:20px;">
+    <div style="font-size:28px;margin-bottom:8px;">☝️</div>
+    <strong>Select Entry, Exit, or Absent mode above to begin.</strong>
+  </div>
+
+  <!-- Scanner section (IN/OUT modes) -->
+  <div id="scanner-section" style="display:none;">
+    <div class="card" style="padding:16px;">
+      <div class="card-title">📷 Camera QR Scanner</div>
+      <div id="reader"></div>
+      <button class="btn btn-primary btn-full" id="btn-start" onclick="startScanner()">Start Camera</button>
+      <button class="btn btn-danger btn-full hidden" id="btn-stop" onclick="stopScanner()">Stop Camera</button>
+      <hr class="divider">
+      <div class="card-title">⌨️ Manual Entry</div>
+      <div class="flex-row">
+        <input type="text" id="manual-id" placeholder="Type Student ID e.g. STU001" style="flex:1;margin:0;">
+        <button class="btn btn-primary" id="manual-btn" onclick="processManual()">Mark</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Absent section -->
+  <div id="absent-section" style="display:none;">
+    <div class="card" style="padding:16px;">
+      <div class="card-title">🚫 Mark Student Absent</div>
+      <p class="text-sm text-muted" style="margin-bottom:14px;">
+        Select any student below. The bus location will update to
+        <strong>their home stop</strong>, because the bus passed through it.
+      </p>
+      <div class="search-wrap" style="margin-bottom:12px;">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="absent-search" placeholder="Search student name…" oninput="filterAbsentList(this.value)">
+      </div>
+      <div class="absent-student-select" id="absent-list">
+        <div class="absent-row text-muted" style="justify-content:center;">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Result Banner -->
+  <div class="result-banner" id="result-banner">
+    <div class="rb-status" id="rb-status"></div>
+    <div class="rb-name" id="rb-name"></div>
+    <div class="rb-meta" id="rb-meta"></div>
+    <div id="rb-location-pill"></div>
+  </div>
+
+  <!-- Today's Scan Log -->
+  <div class="card">
+    <div class="flex-row" style="justify-content:space-between;margin-bottom:14px;">
+      <div class="card-title" style="margin:0;">📋 Today's Activity</div>
+      <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="clearLogView()">Clear view</button>
+    </div>
+    <div id="scan-log"><div class="text-center text-muted" style="padding:24px;">No scans yet today.</div></div>
+  </div>
+
+</main>
+
+<div class="toast-container" id="toasts"></div>
+
+<script>
+  let currentMode = null;
+  let scanner     = null;
+  let scanCool    = false;
+  let _students   = [];
+  let _attendance = [];
+  let _busId      = '';
+
+  // ── Utilities ────────────────────────────────────────────────
+  async function api(url, opts={}) {
+    const r = await fetch(url, { headers:{'Content-Type':'application/json'}, ...opts });
+    return { ok: r.ok, data: await r.json() };
+  }
+
+  function toast(msg, type='info') {
+    const c = document.getElementById('toasts');
+    const t = document.createElement('div');
+    t.className = `toast toast-${type}`;
+    t.textContent = msg;
+    c.appendChild(t);
+    setTimeout(() => { t.classList.add('toast-out'); setTimeout(() => t.remove(), 300); }, 3500);
+  }
+
+  function today() { return new Date().toISOString().split('T')[0]; }
+  function fmtTime(iso) { return new Date(iso).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+
+  // ── Init Data ────────────────────────────────────────────────
+  async function loadBuses() {
+    const { data } = await api('/api/buses');
+    const sel = document.getElementById('bus-sel');
+    const buses = Array.isArray(data) ? data : [];
+    sel.innerHTML = '<option value="">— Select bus —</option>' +
+      buses.map(b => `<option value="${b.bus_id}" data-route="${b.route}">${b.name} — ${b.route}</option>`).join('');
+    if (buses.length === 1) { sel.value = buses[0].bus_id; onBusChange(); }
+  }
+
+  function onBusChange() {
+    _busId = document.getElementById('bus-sel').value;
+    const opt = document.querySelector(`#bus-sel option[value="${_busId}"]`);
+    document.getElementById('bus-route-label').textContent = opt ? opt.dataset.route : '';
+    loadStudents();
+    loadAttendance();
+  }
+
+  async function loadStudents() {
+    const { data } = await api('/api/students');
+    _students = Array.isArray(data) ? data : [];
+    buildAbsentList(_students);
+  }
+
+  async function loadAttendance() {
+    const { data } = await api('/api/attendance');
+    _attendance = Array.isArray(data) ? data : [];
+    renderLog();
+  }
+
+  // ── Mode Selection ───────────────────────────────────────────
+  function setMode(mode) {
+    if (!_busId) { toast('Please select a bus first.','error'); return; }
+    currentMode = mode;
+
+    ['IN','OUT','ABSENT'].forEach(m => {
+      document.getElementById('tab-' + m.toLowerCase()).classList.toggle('active', m === mode);
+    });
+
+    const banner = document.getElementById('mode-banner');
+    banner.className = 'mode-banner ' + mode.toLowerCase();
+    banner.textContent = mode === 'IN' ? '✅ ENTRY MODE — Scan to mark BOARDED'
+      : mode === 'OUT' ? '🚪 EXIT MODE — Scan to mark EXITED'
+      : '🚫 ABSENT MODE — Select student to mark absent';
+
+    document.getElementById('pick-mode-msg').style.display   = 'none';
+    document.getElementById('scanner-section').style.display = mode !== 'ABSENT' ? 'block' : 'none';
+    document.getElementById('absent-section').style.display  = mode === 'ABSENT'  ? 'block' : 'none';
+
+    const mBtn = document.getElementById('manual-btn');
+    mBtn.className = `btn ${mode==='IN'?'btn-success':'btn-danger'}`;
+    mBtn.textContent = mode === 'IN' ? 'Mark Boarded' : 'Mark Exited';
+
+    if (scanner) stopScanner();
+    hideResult();
+  }
+
+  // ── Absent List ──────────────────────────────────────────────
+  function buildAbsentList(students) {
+    filterAbsentList('');
+  }
+
+  function filterAbsentList(q) {
+    q = q.toLowerCase();
+    const busStudents = _students.filter(s =>
+      (!_busId || s.bus_id === _busId) &&
+      (s.name.toLowerCase().includes(q) || s.student_id.toLowerCase().includes(q))
+    );
+    const el = document.getElementById('absent-list');
+    if (!busStudents.length) {
+      el.innerHTML = '<div class="absent-row text-muted" style="justify-content:center;">No students found.</div>';
+      return;
+    }
+    el.innerHTML = busStudents.map(s => {
+      const todayRecs  = _attendance.filter(a => a.student_id === s.student_id && a.date === today());
+      const lastStatus = todayRecs.length ? todayRecs[todayRecs.length-1].status : null;
+      const alreadyAbs = lastStatus === 'ABSENT';
+      return `<div class="absent-row">
+        <div>
+          <div class="stu-name">${s.name} <code class="pill" style="font-size:10px;margin-left:4px;">${s.student_id}</code></div>
+          <div class="stu-loc">📍 ${s.location} · Class ${s.class||'—'}</div>
+        </div>
+        ${alreadyAbs
+          ? `<span class="badge badge-absent">Already absent</span>`
+          : `<button class="mark-btn" onclick="markAbsent('${s.student_id}')">Mark Absent</button>`
+        }
+      </div>`;
+    }).join('');
+  }
+
+  async function markAbsent(studentId) {
+    if (!_busId) { toast('Select a bus first.','error'); return; }
+    const s = _students.find(x => x.student_id === studentId);
+    if (!s) return;
+
+    const { ok, data } = await api('/api/attendance', {
+      method: 'POST',
+      body: JSON.stringify({ student_id: studentId, bus_id: _busId, status: 'ABSENT' })
+    });
+
+    if (!ok) { toast(data.error || 'Error','error'); return; }
+
+    showResult('absent', '🚫 ABSENT', s.name, `Class ${s.class||'—'} · 📍 ${s.location}`, s.location);
+    playBeep('absent');
+    await loadAttendance();
+    filterAbsentList(document.getElementById('absent-search').value);
+    toast(`${s.name} marked absent. Bus location → ${s.location}`,'absent');
+  }
+
+  // ── QR / Manual ──────────────────────────────────────────────
+  function startScanner() {
+    scanner = new Html5Qrcode('reader');
+    scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 220, height: 220 } }, onScan, ()=>{});
+    document.getElementById('btn-start').classList.add('hidden');
+    document.getElementById('btn-stop').classList.remove('hidden');
+  }
+
+  function stopScanner() {
+    if (scanner) { scanner.stop().then(() => { scanner.clear(); scanner = null; }); }
+    document.getElementById('btn-start').classList.remove('hidden');
+    document.getElementById('btn-stop').classList.add('hidden');
+  }
+
+  function onScan(text) {
+    if (scanCool) return;
+    scanCool = true;
+    setTimeout(() => scanCool = false, 2500);
+    markAttendance(text.trim().toUpperCase());
+  }
+
+  function processManual() {
+    const id = document.getElementById('manual-id').value.trim().toUpperCase();
+    if (id) { markAttendance(id); document.getElementById('manual-id').value = ''; }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('manual-id')?.addEventListener('keydown', e => { if (e.key === 'Enter') processManual(); });
+  });
+
+  async function markAttendance(studentId) {
+    if (!currentMode)      { toast('Select a mode first.','error'); return; }
+    if (!_busId)           { toast('Select a bus first.','error'); return; }
+    if (currentMode === 'ABSENT') { toast('Use the student list to mark absent.','error'); return; }
+
+    const s = _students.find(x => x.student_id === studentId);
+    if (!s) { showResult('err', '⚠ Unknown', studentId, 'No student found with this ID.', null); playBeep('err'); return; }
+
+    // Duplicate check
+    const todayRecs = _attendance.filter(a => a.student_id === s.student_id && a.date === today());
+    const last = todayRecs[todayRecs.length-1];
+    if (last && last.status === currentMode) {
+      showResult('dup', 'Already Scanned', s.name, `Already marked ${currentMode} — duplicate ignored.`, null);
+      playBeep('dup');
+      return;
+    }
+
+    const { ok, data } = await api('/api/attendance', {
+      method: 'POST',
+      body: JSON.stringify({ student_id: s.student_id, bus_id: _busId, status: currentMode })
+    });
+
+    if (!ok) { toast(data.error || 'Server error','error'); return; }
+
+    const msg = currentMode === 'IN' ? '✅ BOARDED' : '🚪 EXITED';
+    showResult(currentMode.toLowerCase(), msg, s.name, `Class ${s.class||'—'} · 📍 ${s.location}`, currentMode === 'IN' ? s.location : null);
+    playBeep(currentMode === 'IN' ? 'in' : 'out');
+    await loadAttendance();
+  }
+
+  // ── Result Banner ────────────────────────────────────────────
+  function showResult(type, status, name, meta, location) {
+    const el = document.getElementById('result-banner');
+    el.className = `result-banner rb-${type} fade-in`;
+    el.style.display = 'block';
+    document.getElementById('rb-status').textContent = status;
+    document.getElementById('rb-name').textContent   = name;
+    document.getElementById('rb-meta').textContent   = meta;
+
+    const pill = document.getElementById('rb-location-pill');
+    if (location) {
+      pill.innerHTML = `<span class="location-update-pill">🚌 Bus location updated → <strong>${location}</strong></span>`;
+    } else {
+      pill.innerHTML = '';
+    }
+
+    clearTimeout(window._resTmr);
+    window._resTmr = setTimeout(hideResult, 6000);
+  }
+  function hideResult() {
+    document.getElementById('result-banner').style.display = 'none';
+  }
+
+  // ── Scan Log ─────────────────────────────────────────────────
+  function renderLog() {
+    const el  = document.getElementById('scan-log');
+    const recs = _attendance.filter(a => a.date === today()).reverse().slice(0, 15);
+    if (!recs.length) { el.innerHTML = '<div class="text-center text-muted" style="padding:24px;">No activity today.</div>'; return; }
+    el.innerHTML = recs.map(r => {
+      const s     = _students.find(x => x.student_id === r.student_id);
+      const bCls  = r.status === 'IN' ? 'badge-success' : r.status === 'OUT' ? 'badge-danger' : 'badge-absent';
+      const bTxt  = r.status === 'IN' ? 'Boarded' : r.status === 'OUT' ? 'Exited' : 'Absent';
+      const loc   = (r.status === 'IN' || r.status === 'ABSENT') ? (s?.location ?? '') : '';
+      return `<div class="log-item">
+        <div>
+          <div style="font-weight:600;">${s?.name ?? r.student_id}</div>
+          <div class="text-xs text-muted">${fmtTime(r.timestamp)}${loc ? ' · 📍 ' + loc : ''}</div>
+        </div>
+        <span class="badge ${bCls}">${bTxt}</span>
+      </div>`;
+    }).join('');
+  }
+
+  function clearLogView() { document.getElementById('scan-log').innerHTML = '<div class="text-center text-muted" style="padding:20px;">Log cleared from view.</div>'; }
+
+  // ── Beep ────────────────────────────────────────────────────
+  function playBeep(t) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = t==='in'?880: t==='out'?440: t==='absent'?330: t==='dup'?660: 220;
+      g.gain.value = 0.18;
+      o.start(); o.stop(ctx.currentTime + 0.12);
+    } catch {}
+  }
+
+  // ── Boot ────────────────────────────────────────────────────
+  loadBuses();
+  setInterval(loadAttendance, 10000);
+</script>
+<script src="js/auth.js"></script>
+</body>
+</html>

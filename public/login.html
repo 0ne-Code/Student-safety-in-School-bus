@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In — School Bus Safety System</title>
+  <meta name="description" content="Sign in to access the School Bus Safety System dashboard.">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+
+    .login-card {
+      width: 100%; max-width: 380px;
+      background: var(--c-surface);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--c-border);
+      overflow: hidden;
+    }
+
+    .login-header {
+      background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-primary-light) 100%);
+      padding: 32px 32px 28px;
+      text-align: center;
+      color: white;
+    }
+    .login-header .bus-emoji { font-size: 42px; margin-bottom: 10px; display: block; }
+    .login-header h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; margin-bottom: 4px; }
+    .login-header p  { font-size: 13px; opacity: 0.75; }
+
+    .login-body { padding: 28px 32px 32px; }
+
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; margin-bottom: 6px; }
+    .err-msg {
+      background: var(--c-danger-bg); border: 1px solid #fca5a5;
+      color: var(--c-danger-dark); border-radius: var(--radius-sm);
+      padding: 10px 14px; font-size: 13px; margin-bottom: 16px; display: none;
+    }
+
+    .hint-box {
+      background: var(--c-surface-2); border: 1px solid var(--c-border);
+      border-radius: var(--radius-sm); padding: 14px 16px;
+      margin-top: 20px; font-size: 12px; color: var(--c-text-muted);
+    }
+    .hint-box strong { color: var(--c-text); }
+    .hint-row { display: flex; justify-content: space-between; padding: 3px 0; }
+    .hint-row .role-badge { font-size: 10px; background: #eff6ff; color: var(--c-primary); padding: 1px 7px; border-radius: 10px; font-weight: 700; }
+  </style>
+</head>
+<body>
+
+<div class="login-card fade-in">
+  <div class="login-header">
+    <span class="bus-emoji">🚌</span>
+    <h1>School Bus Safety System</h1>
+    <p>Sign in to continue to your dashboard</p>
+  </div>
+  <div class="login-body">
+    <div id="err-msg" class="err-msg"></div>
+    <form id="login-form">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" placeholder="e.g. admin" required autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="Enter your password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-primary btn-full" id="login-btn">Sign In</button>
+    </form>
+
+    <div class="hint-box">
+      <strong>Demo Accounts</strong>
+      <div class="hint-row" style="margin-top:8px;">
+        <span>admin / admin123</span>
+        <span class="role-badge">Admin</span>
+      </div>
+      <div class="hint-row">
+        <span>staff1 / staff123</span>
+        <span class="role-badge">Staff</span>
+      </div>
+      <div class="hint-row">
+        <span>rakesh001 / rakesh001</span>
+        <span class="role-badge">Parent</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.getElementById('login-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('login-btn');
+    const err = document.getElementById('err-msg');
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+
+    btn.textContent = 'Signing in…';
+    btn.disabled = true;
+    err.style.display = 'none';
+
+    try {
+      const res  = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Login failed');
+
+      if      (data.role === 'admin')  window.location.href = '/admin.html';
+      else if (data.role === 'staff')  window.location.href = '/scanner.html';
+      else                             window.location.href = '/parent.html';
+    } catch (ex) {
+      err.textContent    = ex.message;
+      err.style.display  = 'block';
+      btn.textContent    = 'Sign In';
+      btn.disabled       = false;
+    }
+  });
+</script>
+</body>
+</html>

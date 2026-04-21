@@ -1,0 +1,34 @@
+[
+  {
+    "id": "ATT-1776358959383",
+    "student_id": "STU004",
+    "bus_id": "BUS-02",
+    "status": "IN",
+    "date": "2026-04-16",
+    "timestamp": "2026-04-16T17:02:39.353Z"
+  },
+  {
+    "id": "ATT-1776358975063",
+    "student_id": "STU004",
+    "bus_id": "BUS-02",
+    "status": "OUT",
+    "date": "2026-04-16",
+    "timestamp": "2026-04-16T17:02:55.063Z"
+  },
+  {
+    "id": "ATT-1776358991297",
+    "student_id": "STU005",
+    "bus_id": "BUS-02",
+    "status": "ABSENT",
+    "date": "2026-04-16",
+    "timestamp": "2026-04-16T17:03:11.297Z"
+  },
+  {
+    "id": "ATT-1776358995410",
+    "student_id": "STU006",
+    "bus_id": "BUS-02",
+    "status": "ABSENT",
+    "date": "2026-04-16",
+    "timestamp": "2026-04-16T17:03:15.409Z"
+  }
+]
